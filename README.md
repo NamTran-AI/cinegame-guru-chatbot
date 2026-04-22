@@ -12,8 +12,8 @@ CineGame Guru is a specialized AI assistant designed for the entertainment indus
 
 ## 🛠️ Tech Stack
 
-- **Language**: Python 3.10+
-- **AI Engine**: `google-genai` (Gemini 2.0 Flash & 2.5 Flash Experimental)
+- **Language**: Python 3.14.4
+- **AI Engine**: `google-genai` (Gemini 2.5 Flash Experimental)
 - **Data Scraping**: `trafilatura`
 - **Configuration**: `python-dotenv` (Secure API management)
 - **Architecture**: Agentic RAG with Google Search Grounding tools.
