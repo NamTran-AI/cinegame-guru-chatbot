@@ -1,18 +1,29 @@
-# 🎮 CineGame Guru - RAG-Powered AI Chatbot
+# 🎮 CineGame Guru - Advanced AI Agent & RAG System
 
-A specialized AI assistant designed to explore and explain Easter Eggs and mysteries in video games (focusing on GTA V). This project implements **RAG (Retrieval-Augmented Generation)** to provide highly accurate, lore-specific information from custom knowledge bases.
+CineGame Guru is a specialized AI assistant designed for the entertainment industry (Cinema, Video Games, Comics). This project implements an **Agentic RAG (Retrieval-Augmented Generation)** architecture, combining custom knowledge bases with real-time web intelligence.
 
 ## 🚀 Key Features
-- **Generative AI Integration**: Powered by **Google Gemini 2.5 Flash** for natural and engaging conversations.
-- **RAG Architecture**: Leverages a custom knowledge base (`knowledge.txt`) to bypass AI hallucinations and provide factual data on specific game mysteries (e.g., The Mount Gordo Ghost, Infinity Killer, Vinewood Orange Ball).
-- **Automated Model Validation**: Includes a diagnostic script (`check_models.py`) to verify API capabilities and available models.
-- **Secure Configuration**: Implements environment variable management for sensitive API credentials.
+
+- **🤖 AI-Powered RAG**: Utilizes **Gemini 2.5 Flash** to retrieve and process information from a custom knowledge base (`knowledge.txt`), providing lore-specific accuracy.
+- **🌐 Web Knowledge Ingestor**: Automated scripts to crawl and extract clean content from authoritative URLs (Wikipedia, IGN, Fandom, etc.), building your AI's "brain" in seconds.
+- **🧹 Smart Cleanup (AI-Driven)**: Automatically analyzes and purifies raw data. It filters out system "noise" (error codes, ads) and merges duplicate entries to optimize internal knowledge.
+- **🔍 Real-time Grounding**: Integrated **Google Search** capabilities. Guru can provide up-to-date information for 2026 (movie schedules, latest trailers) beyond the limits of static training data.
+- **🎭 Professional Persona**: Engages in smart, witty, and lore-heavy conversations using gaming and cinema enthusiast terminology.
 
 ## 🛠️ Tech Stack
+
 - **Language**: Python 3.10+
-- **AI Framework**: `google-genai` (Google's latest Generative AI SDK)
-- **Environment Management**: `python-dotenv`
-- **Data Handling**: File-based RAG system
+- **AI Engine**: `google-genai` (Gemini 2.0 Flash & 2.5 Flash Experimental)
+- **Data Scraping**: `trafilatura`
+- **Configuration**: `python-dotenv` (Secure API management)
+- **Architecture**: Agentic RAG with Google Search Grounding tools.
+
+## 📂 Project Structure
+
+- `main.py`: The core Chatbot integrated with Google Search and RAG.
+- `ingest_web.py`: Automated web data collection script.
+- `smart_clean.py`: AI tool for refining and deduplicating the knowledge base.
+- `knowledge.txt`: The processed "Internal Brain" containing specialized data.
 
 ## 📋 Installation & Setup
 
