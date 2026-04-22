@@ -2,52 +2,58 @@ import os
 from dotenv import load_dotenv
 from google import genai
 
+# 1. Cấu hình ban đầu
 load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+FILE_PATH = "knowledge.txt"
 
 def smart_cleanup():
-    file_path = "knowledge.txt"
-    if not os.path.exists(file_path):
-        print("❌ Không tìm thấy file knowledge.txt")
+    if not os.path.exists(FILE_PATH):
+        print(f"❌ Không tìm thấy file {FILE_PATH}")
         return
 
-    # 1. Đọc nội dung hiện tại
-    with open(file_path, "r", encoding="utf-8") as f:
-        old_content = f.read()
+    # 2. Đọc nội dung hiện có
+    with open(FILE_PATH, "r", encoding="utf-8") as f:
+        old_content = f.read().strip()
 
-    print("🧠 Guru đang xem xét và dọn dẹp dữ liệu cho bạn...")
+    if not old_content:
+        print("💡 File đang trống, không có gì để dọn dẹp.")
+        return
 
-    # 2. Gửi yêu cầu cho Gemini lọc dữ liệu
+    print("🧠 Guru đang xem xét và tự động dọn dẹp dữ liệu...")
+
+    # 3. Gửi yêu cầu cho Gemini lọc dữ liệu
     prompt = f"""
-    Below is my AI chatbot's knowledge base. Please:
-    1. Remove duplicated information.
-    2. Remove outdated or contradictory facts.
-    3. Keep the information concise and well-organized.
-    4. Return ONLY the cleaned text, do not add any comments.
+    Bạn là một chuyên gia quản lý dữ liệu. Hãy giúp tôi dọn dẹp file kiến thức này:
+    1. Loại bỏ các dòng thông báo lỗi (ví dụ: 'JavaScript is disabled', 'Access denied', '403 Forbidden').
+    2. Loại bỏ các thông tin trùng lặp hoặc mâu thuẫn.
+    3. Sắp xếp lại nội dung cho gọn gàng, súc tích.
+    4. Giữ lại toàn bộ kiến thức hữu ích về phim ảnh và trò chơi.
+    
+    CHỈ TRẢ VỀ NỘI DUNG ĐÃ DỌN DẸP, KHÔNG THÊM BẤT KỲ LỜI GIẢI THÍCH NÀO.
 
-    CONTENT:
+    NỘI DUNG CẦN DỌN DẸP:
     {old_content}
     """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        
+        new_content = response.text.strip()
 
-    new_content = response.text
+        # 4. Kiểm tra và tự động cập nhật
+        if new_content and len(new_content) > 10:
+            with open(FILE_PATH, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            print("✅ Đã tự động cập nhật và dọn dẹp kiến thức thành công!")
+        else:
+            print("⚠️ Cảnh báo: Kết quả AI trả về quá ngắn hoặc rỗng, không ghi đè để bảo vệ file.")
 
-    # 3. Cho bạn xem thử trước khi lưu
-    print("\n--- NỘI DUNG ĐÃ ĐƯỢC AI DỌN DẸP ---")
-    print(new_content[:500] + "...") # Hiển thị 500 ký tự đầu
-    
-    confirm = input("\n⚠️ Bạn có muốn lưu bản này đè lên knowledge.txt không? (y/n): ")
-    
-    if confirm.lower() == 'y':
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(new_content)
-        print("✅ Đã cập nhật kiến thức sạch!")
-    else:
-        print("❌ Đã hủy bỏ thay đổi.")
+    except Exception as e:
+        print(f"❌ Lỗi khi kết nối với AI: {e}")
 
 if __name__ == "__main__":
     smart_cleanup()

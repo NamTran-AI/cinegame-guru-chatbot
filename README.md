@@ -4,7 +4,7 @@ A specialized AI assistant designed to explore and explain Easter Eggs and myste
 
 ## 🚀 Key Features
 - **Generative AI Integration**: Powered by **Google Gemini 2.5 Flash** for natural and engaging conversations.
-- **RAG Architecture**: Leverages a custom knowledge base (`kienthuc.txt`) to bypass AI hallucinations and provide factual data on specific game mysteries (e.g., The Mount Gordo Ghost, Infinity Killer, Vinewood Orange Ball).
+- **RAG Architecture**: Leverages a custom knowledge base (`knowledge.txt`) to bypass AI hallucinations and provide factual data on specific game mysteries (e.g., The Mount Gordo Ghost, Infinity Killer, Vinewood Orange Ball).
 - **Automated Model Validation**: Includes a diagnostic script (`check_models.py`) to verify API capabilities and available models.
 - **Secure Configuration**: Implements environment variable management for sensitive API credentials.
 
