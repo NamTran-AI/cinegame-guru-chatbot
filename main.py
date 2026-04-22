@@ -4,58 +4,56 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-# 1. Tải cấu hình từ file .env
+# 1. Tải cấu hình
 load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY:
-    print("❌ Lỗi: Không tìm thấy GEMINI_API_KEY trong file .env")
+    print("❌ Lỗi: Không tìm thấy GEMINI_API_KEY")
     sys.exit()
 
-# 2. Khởi tạo Client
 client = genai.Client(api_key=API_KEY)
 
-# 3. Đọc dữ liệu từ knowledge.txt
+# 2. Đọc dữ liệu từ knowledge.txt
 def load_knowledge():
     file_path = "knowledge.txt"
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
-    else:
-        # Tạo file trống nếu chưa có để tránh lỗi
-        open(file_path, "w", encoding="utf-8").close()
-        return ""
+    return ""
 
 knowledge_data = load_knowledge()
 
-# 4. Thiết lập hướng dẫn hệ thống (System Instruction)
+# 3. System Instruction mạnh mẽ hơn
 system_prompt = f"""
-You are 'CineGame Guru', a professional expert in entertainment, including video games and cinema.
-Your knowledge base is derived from the following provided text:
+Bạn là 'CineGame Guru', chuyên gia giải trí hàng đầu. 
+Hôm nay là Thứ Tư, ngày 22 tháng 04 năm 2026.
+
+DỮ LIỆU NỘI BỘ:
 ---
 {knowledge_data}
 ---
-INSTRUCTIONS:
-1. Prioritize information from the provided text above.
-2. If the information is not in the text, use your internal knowledge and 'Google Search' to provide accurate and up-to-date answers.
-3. Always maintain a helpful, engaging, and professional tone.
-4. If you use Google Search to answer, focus on reliable sources like official game wikis, IMDB, or reputable tech news.
-5. Answer in the same language as the user's question.
+
+QUY TẮC TRẢ LỜI:
+1. Luôn kiểm tra DỮ LIỆU NỘI BỘ trước.
+2. Nếu dữ liệu nội bộ cũ hoặc không có, BẮT BUỘC dùng Google Search để lấy tin tức mới nhất của năm 2026.
+3. Nếu thông tin trong file và Google Search mâu thuẫn, hãy ưu tiên thông tin mới nhất từ Google Search và giải thích ngắn gọn.
+4. Trả lời phong cách chuyên gia, hài hước, dùng thuật ngữ game thủ.
 """
 
-# 5. Khởi tạo phiên Chat với Google Search Grounding
+# 4. Khởi tạo phiên Chat với cấu hình chuẩn
 chat = client.chats.create(
-    model="gemini-2.5-flash",
+    model="gemini-2.5-flash", # Đổi sang 2.0 để ổn định hơn
     config=types.GenerateContentConfig(
         system_instruction=system_prompt,
-        tools=[types.Tool(google_search={})] # Kích hoạt Grounding
+        tools=[{"google_search": {}}]
     )
 )
 
 def main():
-    print("--- 🎮 CineGame Guru AI (Grounding Mode) ---")
+    print("--- 🎮 CineGame Guru AI (Grounding Mode 2026) ---")
     print("Guru đã sẵn sàng! Gõ 'exit' để thoát.")
-    print(f"Dữ liệu nội bộ: {len(knowledge_data)} ký tự đã được nạp từ knowledge.txt.\n")
+    print(f"Dữ liệu nội bộ: {len(knowledge_data)} ký tự.\n")
 
     while True:
         user_input = input("You: ")
@@ -63,14 +61,13 @@ def main():
             break
 
         try:
-            # Gửi tin nhắn và nhận phản hồi
             response = chat.send_message(user_input)
             
             print(f"\nGuru: {response.text}")
             
-            # Kiểm tra xem AI có dùng Google Search không (Grounding Metadata)
-            if response.candidates[0].grounding_metadata:
-                print("\n[Nguồn: Đã được xác thực qua Google Search]")
+            # Kiểm tra nguồn Search
+            if response.candidates[0].grounding_metadata and response.candidates[0].grounding_metadata.search_entry_point:
+                print("\n🌐 [Nguồn: Đã được cập nhật từ Google Search thực tế]")
             
             print("-" * 30)
 
