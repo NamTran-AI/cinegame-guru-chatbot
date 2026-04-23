@@ -3,6 +3,8 @@ from google import genai
 from google.genai import types
 import os
 from dotenv import load_dotenv
+import time
+import datetime
 
 # 1. Tải các biến môi trường
 load_dotenv()
@@ -14,20 +16,17 @@ st.set_page_config(
     layout="centered"
 )
 
-# Tùy chỉnh giao diện một chút cho chuyên nghiệp
 st.markdown("""
     <style>
-    .stApp {
-        background-color: #0e1117;
-        color: #ffffff;
-    }
+    .stApp { background-color: #0e1117; color: #ffffff; }
+    .stChatInputContainer { padding-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🎮 CineGame Guru AI")
-st.caption("Advanced RAG System with Real-time Search Grounding")
+st.caption("Real-time Context | Multi-Model Fallback | Dynamic Timeline")
 
-# 3. Khởi tạo kết nối với Gemini 2.5 Flash
+# 3. Khởi tạo kết nối
 api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key)
 
@@ -42,21 +41,50 @@ def get_knowledge():
 
 knowledge_content = get_knowledge()
 
-# 5. Cấu hình "não bộ" cho Guru
+# 5. Cấu hình System Instruction (Lấy thời gian thực động)
+current_time = datetime.datetime.now()
+date_str = current_time.strftime("%d/%m/%Y")
+
 system_instruction = (
-    "Bạn là CineGame Guru - Một thực thể AI siêu cấp am hiểu về Điện ảnh và Video Games. "
-    "QUY TẮC PHẢN HỒI:\n"
-    "1. TẬP TRUNG: Chỉ trả lời duy nhất về chủ đề người dùng đang hỏi. Nếu hỏi về một bộ phim cụ thể (như Iron Man), "
-    "tuyệt đối không liệt kê các thông tin về game hay phim khác có trong kho tri thức.\n"
-    "2. CHI TIẾT: Câu trả lời phải sâu sắc. Với phim ảnh, phải nêu rõ: Đạo diễn, Dàn diễn viên chính, "
-    "Cốt truyện tóm tắt, Doanh thu và các bí ẩn hậu trường (Easter Eggs).\n"
-    "3. NGUỒN LỰC: Ưu tiên dữ liệu từ 'knowledge.txt'. Tuy nhiên, nếu dữ liệu đó không đủ chi tiết hoặc quá cũ, "
-    "hãy sử dụng Google Search để lấy thông tin chính xác nhất cho năm 2026.\n"
-    "4. PHONG CÁCH: Trò chuyện như một chuyên gia, sử dụng định dạng Markdown (Bold, Bullet points) để dễ nhìn.\n\n"
+    f"Hôm nay là ngày {date_str}. Bạn là CineGame Guru - Chuyên gia phân tích Game và Điện ảnh.\n"
+    "NGUYÊN TẮC PHỤC VỤ:\n"
+    "1. THÍCH NGHI: Luôn bám sát vào 'vibe' và yêu cầu cụ thể của người dùng. "
+    "Nếu họ muốn tìm sự tàn bạo, hãy đưa ra gợi ý hắc ám. Nếu họ muốn sự tươi sáng, hãy gợi ý những thứ tích cực.\n"
+    "2. TÍNH KẾ THỪA THÔNG MINH: Kết hợp các tiêu chuẩn ở câu hỏi trước (như đồ họa, phong cách) vào câu hỏi hiện tại, "
+    "nhưng phải biết ưu tiên yêu cầu mới nhất của người dùng.\n"
+    "3. ĐA DẠNG: Luôn cung cấp danh sách ít nhất 3-5 lựa chọn để người dùng có nhiều sự tham khảo.\n"
+    "4. CẬP NHẬT THỜI GIAN THỰC: Dùng Google Search để kiểm tra thông tin phát hành chính xác theo ngày hiện tại.\n"
+    "5. CHI TIẾT & CHUYÊN NGHIỆP: Trình bày đẹp bằng Markdown, bao gồm thông tin về Đạo diễn/NSX, Cốt truyện và các bí mật (Easter Eggs).\n\n"
     f"KHO TRI THỨC NỘI BỘ: {knowledge_content}"
 )
 
-# 6. Quản lý lịch sử Chat
+# 6. Hàm gọi AI thông minh (Retry + Fallback)
+def call_gemini_smart(chat_history):
+    # Danh sách model tối ưu cho tốc độ và hạn mức
+    candidate_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+    last_error = None
+    
+    for model_name in candidate_models:
+        for attempt in range(2):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=chat_history,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        tools=[{"google_search": {}}],
+                        temperature=0.7,
+                        max_output_tokens=2500
+                    )
+                )
+                return response, model_name
+            except Exception as e:
+                last_error = e
+                time.sleep(2) # Đợi 2 giây trước khi thử lại
+                continue
+    raise last_error
+
+# 7. Quản lý lịch sử Chat
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -64,40 +92,36 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 7. Xử lý câu hỏi người dùng
-if prompt := st.chat_input("Hỏi Guru về phim hoặc game bạn quan tâm..."):
-    # Hiển thị tin nhắn User
+# 8. Xử lý câu hỏi người dùng
+if prompt := st.chat_input("Hỏi Guru về phim hoặc game..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Xử lý phản hồi từ Assistant
     with st.chat_message("assistant"):
-        full_response = ""
         try:
-            # Gọi mô hình Gemini 2.5 Flash
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    tools=[{"google_search": {}}],
-                    temperature=0.7,      # Tăng độ sáng tạo và độ dài
-                    max_output_tokens=2500 # Cho phép trả lời rất dài
-                )
-            )
+            with st.spinner("Guru đang phân tích dữ liệu..."):
+                # Chuẩn bị lịch sử để gửi đi (Context-aware)
+                formatted_history = []
+                for m in st.session_state.messages:
+                    role = "user" if m["role"] == "user" else "model"
+                    formatted_history.append({"role": role, "parts": [{"text": m["content"]}]})
+
+                response, used_model = call_gemini_smart(formatted_history)
             
             full_response = response.text
             st.markdown(full_response)
             
-            # Hiển thị nguồn Search nếu có
+            # Caption thông tin bổ trợ
+            st.caption(f"🚀 Trình diễn bởi {used_model} | 📅 Today: {date_str}")
             if response.candidates[0].grounding_metadata:
-                st.caption("🌐 Fact-checked via Google Search")
+                st.caption("🌐 Đã kiểm chứng qua Google Search")
 
         except Exception as e:
-            full_response = "⚠️ Guru đang bị nhiễu sóng hoặc quá tải hạn mức API."
-            st.error("Úp sọt! Có lỗi xảy ra hoặc bạn đã dùng hết quota phút này.")
-            st.info(f"Lỗi: {e}")
+            st.error("⚠️ Guru đang bị nhiễu sóng (Quá tải hạn mức).")
+            st.warning("Vui lòng đợi khoảng 30 giây để hệ thống hồi phục công lực rồi nhấn gửi lại nhé!")
+            with st.expander("Dành cho kỹ thuật viên"):
+                st.code(str(e))
+            full_response = "Lỗi kết nối API."
 
-    # Lưu vào lịch sử
     st.session_state.messages.append({"role": "assistant", "content": full_response})
