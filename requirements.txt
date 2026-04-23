@@ -1,6 +1,13 @@
+# --- Core Framework ---
 streamlit>=1.30.0
-google-genai>=0.1.0
-python-dotenv>=1.0.0
-trafilatura>=1.6.0
-pandas
-numpy
+python-dotenv>=1.0.1
+
+# --- AI & LLM SDK ---
+google-genai>=0.11.0
+
+# --- Web Scraping & Data Ingestion ---
+trafilatura>=1.8.0
+
+# --- Data Engineering (For RAG & Cleaning) ---
+pandas>=2.2.0
+numpy>=1.26.0

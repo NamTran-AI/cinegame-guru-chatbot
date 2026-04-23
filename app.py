@@ -60,24 +60,25 @@ system_instruction = (
 
 # 6. Hàm gọi AI thông minh (Đã cập nhật thứ tự Model chuẩn)
 def call_gemini_smart(history):
-    # Đội hình kết hợp giữa Gemini (Ổn định) và Gemma (Lách Quota)
+    # Đội hình Gemini thuần túy - Luôn ổn định nhất với tính năng Search
     candidate_models = [
-        "gemini-2.5-flash",
-        "gemma-3-27b-it",
-        "gemma-3-12b-it",
-        "gemini-2.0-flash-lite",
-        "gemini-flash-lite-latest"
+        "gemini-2.5-flash",           # Tiền đạo mục tiêu (Ưu tiên số 1)
+        "gemini-2.0-flash-lite",      # Dự phòng tốc độ
+        "gemini-flash-lite-latest",   # Dự phòng ổn định
+        "gemini-2.0-flash",           # Bản Flash 2.0 tiêu chuẩn
+        "gemini-flash-latest"         # Chốt chặn cuối cùng
     ]
     
     last_error = None
     for model_name in candidate_models:
         for attempt in range(2):
             try:
+                # Cấu hình chuẩn xác cho dòng Gemini
                 config = types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     tools=[{"google_search": {}}],
                     temperature=0.7,
-                    max_output_tokens=2500
+                    max_output_tokens=2048
                 )
                 response = client.models.generate_content(
                     model=model_name,
@@ -87,12 +88,16 @@ def call_gemini_smart(history):
                 return response, model_name
             except Exception as e:
                 last_error = e
-                if "429" in str(e):
-                    # In thông báo để Nam theo dõi model nào đang gánh team
-                    print(f"⚠️ {model_name} hết lượt, đang gọi dự phòng...")
-                    time.sleep(1)
+                error_str = str(e)
+                
+                # Nếu hết hạn mức (429) hoặc lỗi vùng (400)
+                if "429" in error_str or "400" in error_str:
+                    print(f"⚠️ {model_name} phản hồi lỗi, đang đổi model...")
+                    # Nghỉ lâu hơn một chút (2.5s) để Google reset trạng thái IP/Key
+                    time.sleep(2.5) 
                     continue
                 else:
+                    # Các lỗi nghiêm trọng khác thì bỏ qua model này luôn
                     break
     raise last_error
 
