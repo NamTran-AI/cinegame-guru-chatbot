@@ -47,37 +47,40 @@ system_instruction = (
 chat_history = []
 
 def call_gemini_smart(history):
-    # Sắp xếp lại thứ tự: Lite và Stable lên trước để tránh lỗi 429 tối đa
+    # Đội hình kết hợp giữa Gemini (Ổn định) và Gemma (Lách Quota)
     candidate_models = [
+        "gemini-2.5-flash",
         "gemini-2.0-flash-lite",
         "gemini-flash-lite-latest",
         "gemini-flash-latest",
-        "gemini-2.0-flash",
-        "gemini-2.5-flash"
+        "gemini-2.0-flash"
     ]
     
     last_error = None
     for model_name in candidate_models:
-        try:
-            config = types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                tools=[{"google_search": {}}]
-            )
-            response = client.models.generate_content(
-                model=model_name,
-                contents=history,
-                config=config
-            )
-            return response, model_name
-        except Exception as e:
-            last_error = e
-            # Nếu hết quota, đợi 1 giây rồi đổi model ngay
-            if "429" in str(e):
-                print(f"⚠️ Model {model_name} đang bận, đang chuyển sang model dự phòng...")
-                time.sleep(1)
-                continue
-            else:
-                break
+        for attempt in range(2):
+            try:
+                config = types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    tools=[{"google_search": {}}],
+                    temperature=0.7,
+                    max_output_tokens=2500
+                )
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=history,
+                    config=config
+                )
+                return response, model_name
+            except Exception as e:
+                last_error = e
+                if "429" in str(e):
+                    # In thông báo để Nam theo dõi model nào đang gánh team
+                    print(f"⚠️ {model_name} hết lượt, đang gọi dự phòng...")
+                    time.sleep(1)
+                    continue
+                else:
+                    break
     raise last_error
 
 def main():

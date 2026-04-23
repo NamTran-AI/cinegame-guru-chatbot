@@ -59,40 +59,41 @@ system_instruction = (
 )
 
 # 6. Hàm gọi AI thông minh (Đã cập nhật thứ tự Model chuẩn)
-def call_gemini_smart(chat_history):
-    # Danh sách model CHUẨN từ danh sách của Nam, ưu tiên dòng Lite để tránh 429
+def call_gemini_smart(history):
+    # Đội hình kết hợp giữa Gemini (Ổn định) và Gemma (Lách Quota)
     candidate_models = [
+        "gemini-2.5-flash",
+        "gemma-3-27b-it",
+        "gemma-3-12b-it",
         "gemini-2.0-flash-lite",
-        "gemini-flash-lite-latest",
-        "gemini-flash-latest",
-        "gemini-2.0-flash",
-        "gemini-2.5-flash"
+        "gemini-flash-lite-latest"
     ]
-    last_error = None
     
+    last_error = None
     for model_name in candidate_models:
-        # Thử tối đa 2 lần cho mỗi model trước khi nhảy sang model khác
         for attempt in range(2):
             try:
+                config = types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    tools=[{"google_search": {}}],
+                    temperature=0.7,
+                    max_output_tokens=2500
+                )
                 response = client.models.generate_content(
                     model=model_name,
-                    contents=chat_history,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        tools=[{"google_search": {}}],
-                        temperature=0.7,
-                        max_output_tokens=2500
-                    )
+                    contents=history,
+                    config=config
                 )
                 return response, model_name
             except Exception as e:
                 last_error = e
-                # Nếu gặp lỗi 429 (Busy), nghỉ 1 giây rồi thử tiếp hoặc đổi model
                 if "429" in str(e):
+                    # In thông báo để Nam theo dõi model nào đang gánh team
+                    print(f"⚠️ {model_name} hết lượt, đang gọi dự phòng...")
                     time.sleep(1)
                     continue
                 else:
-                    break # Lỗi khác thì đổi model luôn
+                    break
     raise last_error
 
 # 7. Quản lý lịch sử Chat
