@@ -41,7 +41,7 @@ def get_knowledge():
 
 knowledge_content = get_knowledge()
 
-# 5. Cấu hình System Instruction (Lấy thời gian thực động)
+# 5. Cấu hình System Instruction (Đồng bộ hoàn toàn với main.py)
 current_time = datetime.datetime.now()
 date_str = current_time.strftime("%d/%m/%Y")
 
@@ -58,13 +58,20 @@ system_instruction = (
     f"KHO TRI THỨC NỘI BỘ: {knowledge_content}"
 )
 
-# 6. Hàm gọi AI thông minh (Retry + Fallback)
+# 6. Hàm gọi AI thông minh (Đã cập nhật thứ tự Model chuẩn)
 def call_gemini_smart(chat_history):
-    # Danh sách model tối ưu cho tốc độ và hạn mức
-    candidate_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+    # Danh sách model CHUẨN từ danh sách của Nam, ưu tiên dòng Lite để tránh 429
+    candidate_models = [
+        "gemini-2.0-flash-lite",
+        "gemini-flash-lite-latest",
+        "gemini-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash"
+    ]
     last_error = None
     
     for model_name in candidate_models:
+        # Thử tối đa 2 lần cho mỗi model trước khi nhảy sang model khác
         for attempt in range(2):
             try:
                 response = client.models.generate_content(
@@ -80,8 +87,12 @@ def call_gemini_smart(chat_history):
                 return response, model_name
             except Exception as e:
                 last_error = e
-                time.sleep(2) # Đợi 2 giây trước khi thử lại
-                continue
+                # Nếu gặp lỗi 429 (Busy), nghỉ 1 giây rồi thử tiếp hoặc đổi model
+                if "429" in str(e):
+                    time.sleep(1)
+                    continue
+                else:
+                    break # Lỗi khác thì đổi model luôn
     raise last_error
 
 # 7. Quản lý lịch sử Chat
@@ -101,9 +112,12 @@ if prompt := st.chat_input("Hỏi Guru về phim hoặc game..."):
     with st.chat_message("assistant"):
         try:
             with st.spinner("Guru đang phân tích dữ liệu..."):
-                # Chuẩn bị lịch sử để gửi đi (Context-aware)
+                # ĐỒNG BỘ: Chỉ gửi 6 tin nhắn gần nhất để tiết kiệm Token/Quota
+                # Giúp tránh lỗi 429 cực kỳ hiệu quả khi nhiều người dùng
+                recent_messages = st.session_state.messages[-6:]
+                
                 formatted_history = []
-                for m in st.session_state.messages:
+                for m in recent_messages:
                     role = "user" if m["role"] == "user" else "model"
                     formatted_history.append({"role": role, "parts": [{"text": m["content"]}]})
 
@@ -114,14 +128,14 @@ if prompt := st.chat_input("Hỏi Guru về phim hoặc game..."):
             
             # Caption thông tin bổ trợ
             st.caption(f"🚀 Trình diễn bởi {used_model} | 📅 Today: {date_str}")
-            if response.candidates[0].grounding_metadata:
-                st.caption("🌐 Đã kiểm chứng qua Google Search")
+            if response.candidates[0].grounding_metadata and response.candidates[0].grounding_metadata.search_entry_point:
+                st.caption("🌐 Đã kiểm chứng qua Google Search thực tế")
 
         except Exception as e:
             st.error("⚠️ Guru đang bị nhiễu sóng (Quá tải hạn mức).")
-            st.warning("Vui lòng đợi khoảng 30 giây để hệ thống hồi phục công lực rồi nhấn gửi lại nhé!")
-            with st.expander("Dành cho kỹ thuật viên"):
+            st.warning("Vui lòng đợi khoảng 30-60 giây để hệ thống hồi phục công lực rồi nhấn gửi lại nhé!")
+            with st.expander("Dành cho kỹ thuật viên (Lỗi 429/400)"):
                 st.code(str(e))
-            full_response = "Lỗi kết nối API."
+            full_response = "Lỗi kết nối API hoặc hết hạn mức sử dụng gói Free."
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})

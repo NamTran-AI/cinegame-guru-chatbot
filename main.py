@@ -1,5 +1,7 @@
 import os
 import sys
+import time
+import datetime  # Thêm thư viện này để lấy thời gian thực
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -22,57 +24,87 @@ def load_knowledge():
             return f.read()
     return ""
 
-knowledge_data = load_knowledge()
+knowledge_content = load_knowledge()
 
-# 3. System Instruction mạnh mẽ hơn
-system_prompt = f"""
-Bạn là 'CineGame Guru', chuyên gia giải trí hàng đầu. 
-Hôm nay là Thứ Tư, ngày 22 tháng 04 năm 2026.
+# 3. Cập nhật System Instruction (Đồng bộ hoàn toàn với app.py)
+current_time = datetime.datetime.now()
+date_str = current_time.strftime("%d/%m/%Y")
 
-DỮ LIỆU NỘI BỘ:
----
-{knowledge_data}
----
-
-QUY TẮC TRẢ LỜI:
-1. Luôn kiểm tra DỮ LIỆU NỘI BỘ trước.
-2. Nếu dữ liệu nội bộ cũ hoặc không có, BẮT BUỘC dùng Google Search để lấy tin tức mới nhất của năm 2026.
-3. Nếu thông tin trong file và Google Search mâu thuẫn, hãy ưu tiên thông tin mới nhất từ Google Search và giải thích ngắn gọn.
-4. Trả lời phong cách chuyên gia, hài hước, dùng thuật ngữ game thủ.
-"""
-
-# 4. Khởi tạo phiên Chat với cấu hình chuẩn
-chat = client.chats.create(
-    model="gemini-2.5-flash", # Đổi sang 2.0 để ổn định hơn
-    config=types.GenerateContentConfig(
-        system_instruction=system_prompt,
-        tools=[{"google_search": {}}]
-    )
+system_instruction = (
+    f"Hôm nay là ngày {date_str}. Bạn là CineGame Guru - Chuyên gia phân tích Game và Điện ảnh.\n"
+    "NGUYÊN TẮC PHỤC VỤ:\n"
+    "1. THÍCH NGHI: Luôn bám sát vào 'vibe' và yêu cầu cụ thể của người dùng. "
+    "Nếu họ muốn tìm sự tàn bạo, hãy đưa ra gợi ý hắc ám. Nếu họ muốn sự tươi sáng, hãy gợi ý những thứ tích cực.\n"
+    "2. TÍNH KẾ THỪA THÔNG MINH: Kết hợp các tiêu chuẩn ở câu hỏi trước (như đồ họa, phong cách) vào câu hỏi hiện tại, "
+    "nhưng phải biết ưu tiên yêu cầu mới nhất của người dùng.\n"
+    "3. ĐA DẠNG: Luôn cung cấp danh sách ít nhất 3-5 lựa chọn để người dùng có nhiều sự tham khảo.\n"
+    "4. CẬP NHẬT THỜI GIAN THỰC: Dùng Google Search để kiểm tra thông tin phát hành chính xác theo ngày hiện tại.\n"
+    "5. CHI TIẾT & CHUYÊN NGHIỆP: Trình bày đẹp bằng Markdown, bao gồm thông tin về Đạo diễn/NSX, Cốt truyện và các bí mật (Easter Eggs).\n\n"
+    f"KHO TRI THỨC NỘI BỘ: {knowledge_content}"
 )
 
+# 4. Cơ chế Fallback và Chat logic
+chat_history = []
+
+def call_gemini_smart(history):
+    # Sắp xếp lại thứ tự: Lite và Stable lên trước để tránh lỗi 429 tối đa
+    candidate_models = [
+        "gemini-2.0-flash-lite",
+        "gemini-flash-lite-latest",
+        "gemini-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash"
+    ]
+    
+    last_error = None
+    for model_name in candidate_models:
+        try:
+            config = types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                tools=[{"google_search": {}}]
+            )
+            response = client.models.generate_content(
+                model=model_name,
+                contents=history,
+                config=config
+            )
+            return response, model_name
+        except Exception as e:
+            last_error = e
+            # Nếu hết quota, đợi 1 giây rồi đổi model ngay
+            if "429" in str(e):
+                print(f"⚠️ Model {model_name} đang bận, đang chuyển sang model dự phòng...")
+                time.sleep(1)
+                continue
+            else:
+                break
+    raise last_error
+
 def main():
-    print("--- 🎮 CineGame Guru AI (Grounding Mode 2026) ---")
-    print("Guru đã sẵn sàng! Gõ 'exit' để thoát.")
-    print(f"Dữ liệu nội bộ: {len(knowledge_data)} ký tự.\n")
+    print(f"--- 🎮 CineGame Guru AI (Sync Mode {date_str}) ---")
+    print("Guru đã sẵn sàng! Gõ 'exit' để thoát.\n")
 
     while True:
         user_input = input("You: ")
         if user_input.lower() in ["exit", "quit", "thoát"]:
             break
 
+        chat_history.append({"role": "user", "parts": [{"text": user_input}]})
+        recent_history = chat_history[-6:] # Tiết kiệm token để tránh lỗi 429
+
         try:
-            response = chat.send_message(user_input)
+            response, used_model = call_gemini_smart(recent_history)
+            chat_history.append({"role": "model", "parts": [{"text": response.text}]})
             
-            print(f"\nGuru: {response.text}")
+            print(f"\nGuru [{used_model}]:\n{response.text}")
             
-            # Kiểm tra nguồn Search
             if response.candidates[0].grounding_metadata and response.candidates[0].grounding_metadata.search_entry_point:
-                print("\n🌐 [Nguồn: Đã được cập nhật từ Google Search thực tế]")
+                print("\n🌐 [Nguồn: Google Search thực tế]")
             
             print("-" * 30)
 
         except Exception as e:
-            print(f"❌ Có lỗi xảy ra: {e}")
+            print(f"❌ Lỗi: {e}")
 
 if __name__ == "__main__":
     main()
